@@ -1,0 +1,17 @@
+VERSION; 4;
+SRC-CAT; 20A-439, VLA;
+HDWR-CAT; NRAO Defaults, 20A-439;
+
+SCHED-BLOCK; block_05h12m_A049; Dynamic; 1; 2020-05-01 21:45:53, 2099-12-31 23:59:59; 04:10-06:10,; 0.0; C; 225.0; 35.0; N; N; Any; ;
+
+  STD; slew; 0542+498=3C147; X band pointing; DUR; 00h05m00s; ; N; N; N; N; Y; SetAtnGain, ; ;
+  STD; atten; 0542+498=3C147; L16f5DC-realfast; DUR; 00h01m00s; ; N; N; N; N; Y; SetAtnGain, ; ;
+  STD; req; 0542+498=3C147; L16f5DC-realfast; DUR; 00h00m30s; ; N; N; N; N; Y; SetAtnGain, ; ;
+  STD; ; 0542+498=3C147; L16f5DC-realfast; DUR; 00h05m11.96s; ; N; N; N; N; Y; Calgain, ; ;
+  STD; ; 0542+498=3C147; L16f5DC-realfast; DUR; 00h01m00s; ; N; N; N; N; Y; CalBP, CalFlux, CalPolLeak, ; ;
+  STD; ; J0359+5057; L16f5DC-realfast; DUR; 00h03m18.5558s; ; N; N; N; N; Y; CalGain, CalPolAng, ; ;
+  STD; ; 0521-207; L16f5DC-realfast; DUR; 00h05m11.661s; ; N; N; N; N; Y; CalGain, ; ;
+  LOOP-START; Targets; 5; N; ;
+    STD; ; J0512.5-2201; L16f5DC-realfast; DUR; 00h12m54.9261s; ; N; N; N; N; Y; ObsTgt, ; ;
+    STD; ; 0521-207; L16f5DC-realfast; DUR; 00h01m41.0306s; ; N; N; N; N; Y; CalGain, ; ;
+  LOOP-END;
