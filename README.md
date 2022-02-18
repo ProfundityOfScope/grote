@@ -1,7 +1,5 @@
-# ProjectAion
+# Great Radio Observation Template Editor
 
-This project's purpose is to identify area of FERMI source uncertainty areas, or indeed entire sources, which have been missed by the ongoing observation efforts of Schinzel et al over the past several LAT point source catalog releases. We take a subset of unassociated 4FGL sources about -40 DEC, and for each look for pointings in the projects that are within a specific fixed range of the source, based on the semi-major axis. 
+Named after Grote Reber, this python code will help you in creating OPT style projects and testing them outside of the VLA OPT system, which can be (during even the best of times) slow and cumbersome. The objective is to have a system which can read in a target list and spit out a complete XML formatted description of the project, which can then be imported into the OPT and submitted without any other steps. 
 
-With this parred down list we can then easily find pointings that overlap the FERMI ellipse is a fairly efficient manner. The missed area is then any part of the uncertainty ellipse which is not covered by the beam (here represented as a circle having a radius of the C-band HWHM). 
-
-These areas are cataloged graphically in a picture database, as well as numerically in a catalog which we can use to develop a schedule for observations to cover these areas.
+Development is ongoing and patchy. Right now just use for reference, more to come soon
