@@ -52,13 +52,38 @@ class Source:
         return self.coord.separation(other.coord).deg
     
 @dataclass
+class Mosaic:
+    '''
+    This class theoretically describes a source to be pointed at
+    '''
+    
+    name: str
+    coord: SkyCoord
+    resource: Resource
+    dur: u.Quantity = 30*u.s
+    num_pointings : int = 7 # this will probably end up post init
+    
+    def __str__(self):
+        return self.pretty()
+    
+    def __repr__(self):
+        pretty_pos = self.coord.to_string()
+        return f'<Scan: {self.name}, Pos: ({pretty_pos})>'
+    
+    def pretty(self, depth=1, indent=0):
+        return '\t'*indent + f'= {self.name} [{self.num_pointings}p]\n'
+    
+    def separation(self, other):
+        return self.coord.separation(other.coord).deg
+    
+@dataclass
 class Loop:
     '''
     This class theoretically describes a loop which contains sources
     '''
     name: str
     repeat: int
-    scans: list[Source]
+    scans: list[Source, Mosaic]
     
     def __str__(self):
         return self.pretty()
@@ -73,7 +98,7 @@ class Loop:
             if depth>0:
                 out += item.pretty(depth-1, indent+1)
         return out
-    
+
 @dataclass
 class Block:
     '''
@@ -81,7 +106,7 @@ class Block:
     '''
     name: str
     start_time: str
-    scans: list[Union[Source, Loop]]
+    scans: list[Union[Source, Loop, Mosaic]]
     
     def __str__(self):
         return self.pretty()
@@ -169,14 +194,23 @@ def make_test_project():
     s1 = Source('Source1', SkyCoord('01h01m01s','01d01\'01"'), Lx32, 5*u.min)
     s2 = Source('Source2', SkyCoord('02h02m02s','02d02\'02"'), Lx32)
     s3 = Source('Source3', SkyCoord('03h03m03s','03d03\'03"'), Lx32)
-    l1 = Loop('Loop1', 2, [s2,s3])
-    
+    m1 = Mosaic('Mosaic1', SkyCoord('03h03m03s','03d03\'03"'), Lx32, 7)
+    l1 = Loop('Loop1', 2, [s2,s3,m1])
     b1 = Block('Block1', '00:00:00.00', [s1,l1])
     
-    p1 = Project('Project1', [b1,b1])
+    s4 = Source('Source4', SkyCoord('01h01m01s','01d01\'01"'), Lx32, 5*u.min)
+    s5 = Source('Source5', SkyCoord('02h02m02s','02d02\'02"'), Lx32)
+    s6 = Source('Source6', SkyCoord('03h03m03s','03d03\'03"'), Lx32)
+    m2 = Mosaic('Mosaic2', SkyCoord('03h03m03s','03d03\'03"'), Lx32, 7)
+    m3 = Mosaic('Mosaic3', SkyCoord('03h03m03s','03d03\'03"'), Lx32, 7)
+    l2 = Loop('Loop2', 2, [s3,s5,s6, m3])
+    b2 = Block('Block2', '00:00:00.00', [s4, m2, l2])
+    
+    
+    p1 = Project('Project1', [b1,b2])
     print(p1.pretty(3))
-    print(p1)
-    print(p1.simulate())
+    # print(p1)
+    # print(p1.simulate())
     return p1
 
 if __name__=='__main__':
