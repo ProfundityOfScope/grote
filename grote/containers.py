@@ -1,16 +1,30 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 """
-Created on Wed Apr 21 23:47:11 2021
+Containers script is the thing you're looking at.
 
-@author: bruzewskis
+There's more of a docstring here.
 """
 
-from dataclasses import dataclass, field
+import numpy as np
 from astropy.coordinates import SkyCoord
 import astropy.units as u
+
+from dataclasses import dataclass, field
 from typing import Union
 import json
+
+from importlib.resources import files, Package
+import static
+
+__author__ = 'Seth Bruzewski'
+__copyright__ = "TBD"
+__credits__ = ["Frank Schinzel", "Greg Taylor"]
+__license__ = "TBD"
+__version__ = "1.0.0"
+__maintainer__ = "Seth Bruzewski"
+__email__ = "bruzewskis@unm.edu"
+__status__ = "Development"
+
 
 @dataclass
 class Resource:
@@ -21,16 +35,31 @@ class Resource:
     """
 
     name: str
-    
+
     isdefault: bool = False
+
+    def __str__(self):
+        return self.name
+    
+    def __repr__(self):
+        return self.__str__()
     
     @classmethod
     def from_name(cls, name):
-        # Search through defaults
-        if True:
-            return cls(name, isdefault=True)
-        else:
-            raise ValueError(f'{name} is not in default resource catalog')
+
+        # Open default catalog
+        # test = files('static').join()
+        with files('static').joinpath('DefaultResources.json').open('rb') as fp:
+            dat = json.load(fp)
+            resources = dat['resources']
+
+            # Search through defaults
+            if name in resources:
+
+                # Grab source and create it
+                return cls(name, isdefault=True)
+            else:
+                raise ValueError(f'{name} is not in default source catalog')
 
 
 @dataclass
@@ -77,6 +106,23 @@ class Source:
                            isdefault=True)
             else:
                 raise ValueError(f'{name} is not in default source catalog')
+    
+    @classmethod
+    def nearest_calibrator(cls, coord, config, band):
+
+        # Open default catalog
+        with open('../static/DefaultSources.json', 'r') as fp:
+            dat = json.load(fp)
+            
+            keys = list(dat['sources'].keys())
+            pos = SkyCoord([ dat['sources'][k]['position'] for k in keys ])
+            
+            seps = coord.separation(pos).deg
+            close = np.argmin(seps)
+            
+            return cls(dat['sources'][keys[close]],
+                       pos[close],
+                       isdefault=True)
 
 
 @dataclass
@@ -119,7 +165,7 @@ class Scan:
 
     def pretty(self, depth=1, indent=0):
         pretty_time = self.time.to_string()
-        return '\t'*indent + f'- {self.name} ({self.source.name}) [{pretty_time}]\n'
+        return '\t'*indent + f'- {self.name}\n'
 
 
 @dataclass
@@ -140,6 +186,16 @@ class Loop:
     name: str
     repeat: int
     scans: list[Scan, Mosaic]
+    
+    isbracked: bool = False
+    comments: str = ''
+    
+    def pretty(self, depth: int = 1, indent: int = 0) -> str:
+        out = '\t'*indent + f'o {self.name} ({self.repeat}x)\n'
+        for item in self.scans:
+            if depth > 0:
+                out += item.pretty(depth-1, indent+1)
+        return out
 
 
 @dataclass
@@ -151,11 +207,23 @@ class Block:
     name: str
     start_time: str
     scans: list[Union[Source, Loop, Mosaic]]
+    config: str
 
-    def __str__(self):
+    lst: str = '00:00'
+    schedtype: str = 'Dynamic'
+    itercount: int = 1
+    shadowlimit: int = 15
+    initTeleAz: float = 225
+    initTeleEl: float = 35
+    avoidSunrise: bool = False
+    avoidSunset: bool = False
+    maxWind: float = 100
+    maxPhase: float = 175
+
+    def __str__(self) -> str:
         return self.pretty()
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         pretty_scans = [s.name for s in self.scans]
         return f'<Block: {self.name}, Scans: {pretty_scans}>'
 
@@ -165,6 +233,13 @@ class Block:
             if depth > 0:
                 out += item.pretty(depth-1, indent+1)
         return out
+    
+    def optimize(self, threshold: float = 0.01) -> None:
+        
+        ras = [ s.source.coord.ra.wrap_at('180d').deg for s in self.scans ]
+        neworder = np.argsort(ras)
+        
+        self.scans = self.scans[neworder]
 
     def simulate(self) -> float:
         """Simulate project runtime.
@@ -186,6 +261,9 @@ class Block:
 
         return time
 
+    def write(self, filename, overwrite=True) -> None:
+        pass
+
 
 @dataclass
 class Project:
@@ -196,14 +274,14 @@ class Project:
     name: str = 'Default'
     blocks: list[Block] = field(default_factory=list)
 
-    def __str__(self):
+    def __str__(self) -> str:
         return self.pretty()
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         pretty_blocks = [b.name for b in self.blocks]
         return f'<Project: {self.name}, Blocks: {pretty_blocks}>'
 
-    def pretty(self, depth=1, indent=0):
+    def pretty(self, depth: int = 1, indent: int = 0) -> str:
         out = '\t'*indent + self.name + '\n'
         for item in self.blocks:
             if depth > 0:
@@ -217,14 +295,6 @@ class Project:
         which one can then edit as they like
         """
         return cls()
-
-    def write(self, filename: str, style: str = 'xml',
-              overwrite: bool = False) -> bool:
-        """
-        Not implemented yet, will eventually write out the file either as XML
-        or as all the relevant text files one would need
-        """
-        return True
 
     def simulate(self) -> float:
         """Simulate project runtime.
@@ -243,6 +313,10 @@ class Project:
 
         return time
 
+    def write(self, naming: str, overwrite: bool = False) -> None:
+        for block in self.blocks:
+            block.write(f'{naming}_{block.name}.blah')
+
 
 def make_test_project():
     """
@@ -254,19 +328,28 @@ def make_test_project():
         The generated project object.
 
     """
-    Lx32 = Resource.from_name('Lx32')
+    xr = Resource.from_name('X-point')
+    lr = Resource.from_name('L16f2A')
 
     s1 = Scan('Scan1', 'J0638+5933',
-              Lx32, 15*u.min, 'target')
-    s2 = Scan('Scan2', Source('Source2', SkyCoord('02h02m02s', '02d02\'02"')),
-              Lx32, 15*u.min, 'target')
+              xr, 15*u.min, 'target')
+    s2 = Scan('Scan2', Source('Source2', SkyCoord('02h24m32s', '10d15\'30"')),
+              lr, 15*u.min, 'target')
     s3 = Scan('Scan3', Source('Source3', SkyCoord('03h03m03s', '03d03\'03"')),
-              Lx32, 20*u.min, 'target')
+              lr, 20*u.min, 'target')
 
-    b1 = Block('Block1', '00:00:00.00', [s1, s2, s3])
+    c1 = Source.nearest_calibrator(s3.source.coord, 'A', 'L')
+    s4 = Scan('CalScan', c1, lr, 5*u.min, 'cal')
+
+    l1 = Loop('Loop1', 10, [s3, s4])
+    l2 = Loop('Loop2', 5, [s4, s3])
+
+    b1 = Block('Block1', '00:00:00.00', [s1, s2, l1], 'C')
+    b1 = Block('Block2', '00:00:00.00', [s1, l2, s2], 'C')
 
     p1 = Project('Project1', [b1, b1])
     print(p1.pretty(3))
+
     print(p1.simulate())
     print(b1.simulate())
 

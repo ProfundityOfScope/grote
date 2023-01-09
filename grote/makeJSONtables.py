@@ -16,7 +16,7 @@ import json
 if __name__ == '__main__':
 
     # Generate the source list in a less obnoxious way
-    out = {'description': 'nraoDefaultSources',
+    out = {'description': 'nraoDefaultSources', 'version': '1.0.0',
            'sourcekeys': {}, 'sources': {}}
     with open('../static/DefaultSources.xml', 'r') as fp:
         
@@ -52,4 +52,22 @@ if __name__ == '__main__':
             
         # Dump it in a nicer format
         json.dump(out, open('../static/DefaultSources.json', 'w'))
-        test = json.load(open('../static/DefaultSources.json', 'r'))
+        
+    # Generate the resource list in a less obnoxious way
+    with open('../static/DefaultResources.xml', 'r') as fp:
+        
+        data = xmltodict.parse(fp.read(), process_namespaces=False)
+        
+        out = {'description': 'nraoDefaultResources', 'version': '1.0.0', 
+               'resources': {}}
+        for entry in data['resourceCatalog']['entries']['resource']:
+            
+            name = entry['@name']
+            out['resources'][name] = {}
+            out['resources'][name]['notes'] = entry['notes']
+            
+            for udv in entry['userDefinedValues']['userDefinedValue']:
+                out['resources'][name]['notes'][udv['@key']] = udv['@value']
+        
+        # Dump it out
+        json.dump(out, open('../static/DefaultResources.json', 'w'))
