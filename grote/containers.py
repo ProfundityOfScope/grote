@@ -10,7 +10,7 @@ from dataclasses import dataclass, field
 from astropy.coordinates import SkyCoord
 import astropy.units as u
 from typing import Union
-
+import json
 
 @dataclass
 class Resource:
@@ -21,26 +21,94 @@ class Resource:
     """
 
     name: str
-    library: str = field(init=False)
-
-    def __post_init__(self):
-        default_resources = {'Lx32'}
-        if self.name in default_resources:
-            self.library = 'NRAO_Default'
+    
+    isdefault: bool = False
+    
+    @classmethod
+    def from_name(cls, name):
+        # Search through defaults
+        if True:
+            return cls(name, isdefault=True)
         else:
-            self.library = 'MyResources'
+            raise ValueError(f'{name} is not in default resource catalog')
 
 
 @dataclass
 class Source:
-    """
-    This class theoretically describes a source to be pointed at.
-    """
+    """Theoretically describes a source to be pointed at."""
 
     name: str
     coord: SkyCoord
-    resource: Resource
-    dur: u.Quantity = 30*u.s
+
+    isdefault: bool = False
+
+    groupNames: str = ''
+    coordinateSystem: str = 'Equatorial'
+    epoch: str = 'J2000'
+    longRange: str = ''
+    latRange: str = ''
+    velocityRefFrame: str = ''
+    velocityConvention: str = ''
+    velocity: str = ''
+    calibrator: str = ''
+
+    def __str__(self) -> str:
+        pretty_pos = self.coord.to_string('hmsdms')
+        return f'<Source: {self.name}, Position: ({pretty_pos})>'
+
+    def __repr__(self) -> str:
+        return self.__str__()
+
+    @classmethod
+    def from_name(cls, name):
+
+        # Open default catalog
+        with open('../static/DefaultSources.json', 'r') as fp:
+            dat = json.load(fp)
+            sourcekeys = dat['sourcekeys']
+
+            # Search through defaults
+            if name in sourcekeys:
+
+                # Grab source and create it
+                defsource = dat['sources'][sourcekeys[name]]
+                return cls(defsource['name'],
+                           SkyCoord(defsource['position']),
+                           isdefault=True)
+            else:
+                raise ValueError(f'{name} is not in default source catalog')
+
+
+@dataclass
+class Scan:
+    """
+    This is a scan, separate from a source
+    """
+
+    name: str
+    source: Union[Source, str]
+    resource: Union[Resource, str]
+    time: u.Quantity
+    intents: str
+
+    timetype: str = 'DUR'
+    antennaWrap: str = 'CW'
+    applyRefPtg: bool = False
+    applyPhase: bool = False
+    recordOnMark5: bool = False
+    allowOverTop: bool = False
+    use10HzNoise: bool = True
+    comments: str = ''
+
+    def __post_init__(self):
+        
+        # Parse source string if we need to
+        if isinstance(self.source, str):
+            self.source = Source.from_name(self.source)
+        
+        # Parse resource string if we need to
+        if isinstance(self.resource, str):
+            self.resource = Resource.from_name(self.source)
 
     def __str__(self):
         return self.pretty()
@@ -50,11 +118,8 @@ class Source:
         return f'<Scan: {self.name}, Pos: ({pretty_pos})>'
 
     def pretty(self, depth=1, indent=0):
-        pretty_time = self.dur.to_string()
-        return '\t'*indent + f'- {self.name} ({pretty_time})\n'
-
-    def separation(self, other):
-        return self.coord.separation(other.coord).deg
+        pretty_time = self.time.to_string()
+        return '\t'*indent + f'- {self.name} ({self.source.name}) [{pretty_time}]\n'
 
 
 @dataclass
@@ -64,23 +129,6 @@ class Mosaic:
     """
 
     name: str
-    coord: SkyCoord
-    resource: Resource
-    dur: u.Quantity = 30*u.s
-    num_pointings: int = 7  # this will probably end up post init
-
-    def __str__(self):
-        return self.pretty()
-
-    def __repr__(self):
-        pretty_pos = self.coord.to_string()
-        return f'<Scan: {self.name}, Pos: ({pretty_pos})>'
-
-    def pretty(self, depth=1, indent=0):
-        return '\t'*indent + f'= {self.name} [{self.num_pointings}p]\n'
-
-    def separation(self, other):
-        return self.coord.separation(other.coord).deg
 
 
 @dataclass
@@ -88,23 +136,10 @@ class Loop:
     """
     This class theoretically describes a loop which contains sources
     """
+
     name: str
     repeat: int
-    scans: list[Source, Mosaic]
-
-    def __str__(self):
-        return self.pretty()
-
-    def __repr__(self):
-        pretty_scans = [s.name for s in self.scans]
-        return f'<Loop: {self.name}, Scans: {pretty_scans}>'
-
-    def pretty(self, depth=1, indent=0):
-        out = '\t'*indent + f'o {self.name} [x{self.repeat}]\n'
-        for item in self.scans:
-            if depth > 0:
-                out += item.pretty(depth-1, indent+1)
-        return out
+    scans: list[Scan, Mosaic]
 
 
 @dataclass
@@ -112,6 +147,7 @@ class Block:
     """
     This class theoretically describes a block which contains loops or sources
     """
+
     name: str
     start_time: str
     scans: list[Union[Source, Loop, Mosaic]]
@@ -130,16 +166,25 @@ class Block:
                 out += item.pretty(depth-1, indent+1)
         return out
 
-    @classmethod
-    def from_file(cls, filename: str, stype: str = 'fits'):
-        """Read a project from disk.
+    def simulate(self) -> float:
+        """Simulate project runtime.
 
-        This method should read a block from a file. It should be flexible
-        enough to handle a csv or fits table with the right columns
-        (Name,RA,DEC,Intent,etc...) or just a file right from the OPT. Can
-        either have the user entry fits/csv/opt or we can guess it
+        A simple implementation of timing, assuming no slew time, just adds up
+        the time.
+
+        Returns
+        -------
+        time : float
+            The time.
         """
-        return cls()
+        time = 0 * u.s
+        for i, scan in enumerate(self.scans):
+            if isinstance(scan, Scan):
+                time += scan.time
+            else:
+                pass  # TODO: add loop and mosaic
+
+        return time
 
 
 @dataclass
@@ -147,6 +192,7 @@ class Project:
     """
     This class theoretically describes a project which contains blocks
     """
+    
     name: str = 'Default'
     blocks: list[Block] = field(default_factory=list)
 
@@ -172,8 +218,8 @@ class Project:
         """
         return cls()
 
-    def write(self, filename: str, style: str = 'xml', 
-              clobber: bool = False) -> bool:
+    def write(self, filename: str, style: str = 'xml',
+              overwrite: bool = False) -> bool:
         """
         Not implemented yet, will eventually write out the file either as XML
         or as all the relevant text files one would need
@@ -191,16 +237,9 @@ class Project:
         time : float
             The time.
         """
-        time = 0
+        time = 0 * u.s
         for block in self.blocks:
-            for scan in block.scans:
-                if isinstance(scan, Loop):
-                    loop_time = 0
-                    for sub_scan in scan.scans:
-                        loop_time += sub_scan.dur
-                    time += scan.repeat * loop_time
-                else:
-                    time += scan.dur
+            time += block.simulate()
 
         return time
 
@@ -215,27 +254,22 @@ def make_test_project():
         The generated project object.
 
     """
-    Lx32 = Resource('Lx32')
+    Lx32 = Resource.from_name('Lx32')
 
-    s1 = Source('Source1', SkyCoord('01h01m01s', '01d01\'01"'), Lx32, 5*u.min)
-    s2 = Source('Source2', SkyCoord('02h02m02s', '02d02\'02"'), Lx32)
-    s3 = Source('Source3', SkyCoord('03h03m03s', '03d03\'03"'), Lx32)
-    m1 = Mosaic('Mosaic1', SkyCoord('03h03m03s', '03d03\'03"'), Lx32, 7)
-    l1 = Loop('Loop1', 2, [s2, s3, m1])
-    b1 = Block('Block1', '00:00:00.00', [s1, l1])
+    s1 = Scan('Scan1', 'J0638+5933',
+              Lx32, 15*u.min, 'target')
+    s2 = Scan('Scan2', Source('Source2', SkyCoord('02h02m02s', '02d02\'02"')),
+              Lx32, 15*u.min, 'target')
+    s3 = Scan('Scan3', Source('Source3', SkyCoord('03h03m03s', '03d03\'03"')),
+              Lx32, 20*u.min, 'target')
 
-    s4 = Source('Source4', SkyCoord('01h01m01s', '01d01\'01"'), Lx32, 5*u.min)
-    s5 = Source('Source5', SkyCoord('02h02m02s', '02d02\'02"'), Lx32)
-    s6 = Source('Source6', SkyCoord('03h03m03s', '03d03\'03"'), Lx32)
-    m2 = Mosaic('Mosaic2', SkyCoord('03h03m03s', '03d03\'03"'), Lx32, 7)
-    m3 = Mosaic('Mosaic3', SkyCoord('03h03m03s', '03d03\'03"'), Lx32, 7)
-    l2 = Loop('Loop2', 2, [s3, s5, s6, m3])
-    b2 = Block('Block2', '00:00:00.00', [s4, m2, l2])
+    b1 = Block('Block1', '00:00:00.00', [s1, s2, s3])
 
-    p1 = Project('Project1', [b1, b2])
+    p1 = Project('Project1', [b1, b1])
     print(p1.pretty(3))
-    # print(p1)
-    # print(p1.simulate())
+    print(p1.simulate())
+    print(b1.simulate())
+
     return p1
 
 
