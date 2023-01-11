@@ -403,11 +403,12 @@ class MotionSimulator(object):
         ------
         None
         """
-
         return self.__currentAz.copy()
 
     def setCurrentAntennaAzimuth(self, a, w=None):
         """
+        Set the current antenna azimuth.
+
         Sets the current Antenna Az to a clone of Angle equivalent to
         `a` at wrap `w` if `a` is within range.
 
@@ -425,9 +426,8 @@ class MotionSimulator(object):
         TypeError - Raised when inputs are not the correct type
         ValueError - Raised when inputs are outside of range
         """
-
         # Check input type
-        if not a is None:
+        if a is not None:
             if not isinstance(a, Angle):
                 raise TypeError('Initializing Azimuth is not Astropy Angle')
 
@@ -444,6 +444,8 @@ class MotionSimulator(object):
 
     def getCurrentAntennaElevation(self):
         """
+        Get the current antenna elevation.
+
         Returns a copy of the current antenna elevation. This value should be
         in the range 8 to 125 degrees.
 
